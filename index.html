@@ -208,7 +208,7 @@ small { color: gray; }
     <span id="fuego">🔥🔥🔥</span>
     <h1>¡GANASTE EL JUEGO ROJO!</h1>
     <p>🌍 ¡El Juego Rojo está entrando<br>a la atmósfera!</p>
-    <p style="font-size:0.9em; color:#ccc; margin-top:10px;">Completaste todas tus misiones<br>del mes. ¡Eres increíble! 🏆</p>
+    <p style="font-size:0.9em; color:#ccc; margin-top:10px;">¡Lo acercaste a 0 km!<br>¡Eres increíble! 🏆</p>
   </div>
   <button id="btn-cerrar-victoria" onclick="cerrarVictoria()">🎮 Seguir jugando</button>
 </div>
@@ -247,18 +247,17 @@ small { color: gray; }
 
   <h2>👦 Modo Hijo</h2>
 
-  <p>⭐ Puntos: <span id="puntos">0</span></p>
+  <p>🛸 Distancia del Juego Rojo: <span id="distancia-num">1000</span> km</p>
   <p>📊 Nivel: <span id="nivel">1</span></p>
 
   <h3>🎮 Misiones del día</h3>
   <div id="misiones"></div>
 
   <button onclick="generarMisiones()">🔄 Nuevas misiones</button>
-  <p id="progreso-mes">📅 Días completados este mes: <span id="dias-completados">0</span> / <span id="dias-mes">0</span></p>
 
   <h3>👽 Cercanía del Juego Rojo</h3>
   <div class="alien" onclick="cercania()">👽</div>
-  <p id="distancia">Toca el alien</p>
+  <p id="distancia">Toca el alien para ver la distancia</p>
 
   <button onclick="cerrar()">Salir</button>
 </div>
@@ -288,31 +287,21 @@ small { color: gray; }
 <script>
 
 // ---------------- DATOS ----------------
-let puntos = parseInt(localStorage.getItem("puntos")) || 0;
+const KM_INICIO = 1000;
+let km = parseInt(localStorage.getItem("km"));
+if (isNaN(km) || km === null) km = KM_INICIO;
 let nivel = parseInt(localStorage.getItem("nivel")) || 1;
 let historial = JSON.parse(localStorage.getItem("historial")) || [];
 let yearSave = parseInt(localStorage.getItem("year")) || new Date().getFullYear();
-
-// Registro de días con misiones completadas este mes
-let diasCompletados = JSON.parse(localStorage.getItem("diasCompletados")) || [];
 let misionesHoy = JSON.parse(localStorage.getItem("misionesHoy")) || { fecha: "", completadas: 0, total: 0 };
 
 // ---------------- REINICIO ANUAL ----------------
 let yearNow = new Date().getFullYear();
 if (yearNow !== yearSave) {
-  puntos = 0;
+  km = KM_INICIO;
   nivel = 1;
   historial = [];
   localStorage.setItem("year", yearNow);
-}
-
-// Reinicio mensual del registro de días
-let mesActual = new Date().getMonth() + "-" + new Date().getFullYear();
-let mesSave = localStorage.getItem("mesSave") || mesActual;
-if (mesActual !== mesSave) {
-  diasCompletados = [];
-  localStorage.setItem("diasCompletados", JSON.stringify(diasCompletados));
-  localStorage.setItem("mesSave", mesActual);
 }
 
 // ---------------- PIN ----------------
@@ -372,7 +361,7 @@ function cerrar() {
   location.reload();
 }
 
-// ---------------- MISIÓNES ----------------
+// ---------------- MISIONES ----------------
 const lista = [
   "Ordena tu cama",
   "Lee 10 minutos",
@@ -390,17 +379,23 @@ function generarMisiones() {
 
   let fechaHoy = new Date().toLocaleDateString();
 
-  // Si ya se generaron hoy, no regenerar (para no perder el conteo)
   if (misionesHoy.fecha === fechaHoy && misionesHoy.total > 0) {
-    // Mostrar las misiones pendientes del día
-    let pendientes = misionesHoy.total - misionesHoy.completadas;
-    if (pendientes <= 0) {
+    if (misionesHoy.completadas >= misionesHoy.total) {
       cont.innerHTML = "<p style='color:#4caf50'>✅ ¡Ya completaste todas las misiones de hoy!</p>";
       return;
     }
+    // Regenerar las que faltan
+    let restantes = misionesHoy.total - misionesHoy.completadas;
+    for (let i = 0; i < restantes; i++) {
+      let m = lista[Math.floor(Math.random() * lista.length)];
+      let div = document.createElement("div");
+      div.className = "mision";
+      div.innerHTML = m + " <button onclick='completar(this)'>✔</button>";
+      cont.appendChild(div);
+    }
+    return;
   }
 
-  // Generar nuevas misiones del día
   misionesHoy = { fecha: fechaHoy, completadas: 0, total: 4 };
   localStorage.setItem("misionesHoy", JSON.stringify(misionesHoy));
 
@@ -411,54 +406,48 @@ function generarMisiones() {
     div.innerHTML = m + " <button onclick='completar(this)'>✔</button>";
     cont.appendChild(div);
   }
-
-  actualizarProgresoMes();
 }
 
 function completar(btn) {
-  puntos += 10;
+  // Cada misión resta 10 km
+  km = Math.max(0, km - 10);
   actualizar();
   btn.parentElement.remove();
 
-  // Registrar misión completada
   misionesHoy.completadas = (misionesHoy.completadas || 0) + 1;
   localStorage.setItem("misionesHoy", JSON.stringify(misionesHoy));
 
-  // ¿Se completaron todas las del día?
   if (misionesHoy.completadas >= misionesHoy.total) {
-    let fechaHoy = new Date().toLocaleDateString();
-    if (!diasCompletados.includes(fechaHoy)) {
-      diasCompletados.push(fechaHoy);
-      localStorage.setItem("diasCompletados", JSON.stringify(diasCompletados));
-    }
-
     document.getElementById("misiones").innerHTML =
       "<p style='color:#4caf50'>✅ ¡Misiones del día completadas!</p>";
-
-    actualizarProgresoMes();
-    verificarVictoriaMes();
   }
-}
 
-function actualizarProgresoMes() {
-  let now = new Date();
-  let diasEnMes = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  let diasPasados = now.getDate();
-  document.getElementById("dias-completados").innerText = diasCompletados.length;
-  document.getElementById("dias-mes").innerText = diasPasados;
-}
-
-function verificarVictoriaMes() {
-  let now = new Date();
-  let diasEnMes = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  let diasPasados = now.getDate();
-
-  // Ganaste si completaste misiones en todos los días transcurridos del mes
-  if (diasCompletados.length >= diasPasados && diasPasados >= 1) {
+  // Victoria si llega a 0 km
+  if (km <= 0) {
     mostrarVictoria();
   }
 }
 
+// ---------------- NIVEL ----------------
+function nivelCalc() {
+  // Nivel basado en km restantes (menos km = nivel más alto)
+  let kmRestante = km;
+  if (kmRestante <= 0)       nivel = 7;
+  else if (kmRestante <= 100) nivel = 6;
+  else if (kmRestante <= 300) nivel = 5;
+  else if (kmRestante <= 500) nivel = 4;
+  else if (kmRestante <= 700) nivel = 3;
+  else if (kmRestante <= 900) nivel = 2;
+  else nivel = 1;
+}
+
+// ---------------- CERCANÍA ALIEN ----------------
+function cercania() {
+  document.getElementById("distancia").innerText =
+    "🛸 El Juego Rojo está a " + km + " km de la Tierra";
+}
+
+// ---------------- VICTORIA ----------------
 function mostrarVictoria() {
   let v = document.getElementById("victoria");
   v.classList.add("activo");
@@ -502,7 +491,6 @@ function iniciarEstrellas() {
       if (s.y > canvas.height) s.y = 0;
     });
 
-    // Meteoros rojos
     ctx.strokeStyle = "rgba(255,60,60,0.6)";
     ctx.lineWidth = 2;
     estrellas.filter((_, i) => i % 20 === 0).forEach(s => {
@@ -517,59 +505,36 @@ function iniciarEstrellas() {
   animar();
 }
 
-// ---------------- NIVEL ----------------
-function nivelCalc() {
-  if (puntos > 500) nivel = 7;
-  else if (puntos > 300) nivel = 6;
-  else if (puntos > 200) nivel = 5;
-  else if (puntos > 120) nivel = 4;
-  else if (puntos > 60) nivel = 3;
-  else if (puntos > 20) nivel = 2;
-  else nivel = 1;
-}
-
-// ---------------- CERCANÍA ALIEN ----------------
-function cercania() {
-  nivelCalc();
-
-  let M = 1;
-
-  if (nivel == 1) M = 100;
-  else if (nivel == 2) M = 100;
-  else if (nivel == 3) M = 50;
-  else if (nivel == 4) M = 40;
-  else if (nivel == 5) M = 30;
-  else if (nivel == 6) M = 20;
-  else if (nivel == 7) M = 10;
-
-  let distancia = puntos * M;
-
-  document.getElementById("distancia").innerText =
-    "🛸 Distancia del Juego Rojo: " + distancia + " km";
-}
-
 // ---------------- EVALUACIÓN PADRE ----------------
 function evaluar() {
-  let total = 0;
+  let kmCambio = 0;
 
-  if (document.getElementById("tareas").checked) total += 15;
-  if (document.getElementById("bueno").checked) total += 10;
-  if (document.getElementById("ayuda").checked) total += 15;
-  if (document.getElementById("respeto").checked) total += 10;
-  if (document.getElementById("berrinche").checked) total -= 20;
+  if (document.getElementById("tareas").checked) kmCambio -= 15;
+  if (document.getElementById("bueno").checked) kmCambio -= 10;
+  if (document.getElementById("ayuda").checked) kmCambio -= 15;
+  if (document.getElementById("respeto").checked) kmCambio -= 10;
+  if (document.getElementById("berrinche").checked) kmCambio += 20;
 
   historial.push({
     fecha: new Date().toLocaleDateString(),
-    puntos: total
+    puntos: -kmCambio  // guardamos en positivo para mostrar como "puntos ganados"
   });
 
-  puntos += total;
+  km = Math.max(0, km + kmCambio);
 
   guardar();
   mostrarHistorial();
   actualizar();
 
-  alert("Evaluación enviada: " + total + " puntos");
+  let msg = kmCambio < 0
+    ? "¡El Juego Rojo se acercó " + Math.abs(kmCambio) + " km!"
+    : kmCambio > 0
+    ? "El Juego Rojo se alejó " + kmCambio + " km."
+    : "Sin cambios.";
+
+  alert("Evaluación enviada.\n" + msg + "\n🛸 Distancia actual: " + km + " km");
+
+  if (km <= 0) mostrarVictoria();
 }
 
 // ---------------- HISTORIAL ----------------
@@ -580,7 +545,7 @@ function mostrarHistorial() {
   historial.forEach(e => {
     let div = document.createElement("div");
     div.className = "mision";
-    div.innerHTML = "📅 " + e.fecha + " → 🎮 " + e.puntos + " puntos";
+    div.innerHTML = "📅 " + e.fecha + " → 🛸 -" + e.puntos + " km";
     h.appendChild(div);
   });
 }
@@ -588,17 +553,14 @@ function mostrarHistorial() {
 // ---------------- ACTUALIZAR ----------------
 function actualizar() {
   nivelCalc();
-
-  document.getElementById("puntos").innerText = puntos;
+  document.getElementById("distancia-num").innerText = km;
   document.getElementById("nivel").innerText = nivel;
-
-  actualizarProgresoMes();
   guardar();
 }
 
 // ---------------- GUARDAR ----------------
 function guardar() {
-  localStorage.setItem("puntos", puntos);
+  localStorage.setItem("km", km);
   localStorage.setItem("nivel", nivel);
   localStorage.setItem("historial", JSON.stringify(historial));
 }
@@ -610,4 +572,3 @@ actualizar();
 
 </body>
 </html>
- 
